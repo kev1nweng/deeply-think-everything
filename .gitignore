@@ -1,0 +1,12 @@
+config.ini
+
+__pycache__
+*.py[cod]
+*$py.class
+*.pyo
+*.pyd
+.Python
+.venv
+.vscode
+.idea
+env
