@@ -5,6 +5,7 @@ import time
 import openai
 import configparser
 import re
+import warnings
 from typing import Generator
 from rich.markdown import Markdown
 from rich.console import Console
@@ -12,6 +13,8 @@ from rich.syntax import Syntax
 from wcwidth import wcswidth
 from pylatexenc.latex2text import LatexNodes2Text
 from prompt_toolkit import prompt
+
+warnings.filterwarnings("ignore", category=SyntaxWarning)
 
 # 读取配置文件
 script_dir = os.path.dirname(os.path.realpath(__file__))
@@ -43,7 +46,7 @@ def dynamic_separator(title: str) -> str:
     根据终端宽度自动调整分隔线长度，确保标题居中显示
     wcswidth用于准确计算包含中文等宽字符的显示宽度
     """
-    
+
     term_width = console.width
     title = f" {title} "
     title_width = wcswidth(title)
@@ -58,19 +61,19 @@ def _handle_block_latex(match: re.Match) -> str:
     """处理块级LaTeX公式
     将LaTeX数学公式转换为纯文本格式，并添加美观的边框
     """
-    
+
     formula = match.group(1) or match.group(2)
     converted = LatexNodes2Text().latex_to_text(formula).strip()
     return f"\n┌ {' LaTeX ':-^8} ┐\n{converted}\n└ {'-'*8} ┘\n"
 
 
 def _process_latex_in_text(text: str) -> str:
-    """处理非代码块中的LaTeX公式
+    r"""处理非代码块中的LaTeX公式
     1. 处理行内公式: $formula$ -> ┆formula┆
     2. 处理块级公式: $$formula$$ 或 \[formula\] -> 带框显示
     3. 避免处理已转义的LaTeX标记
     """
-    
+
     # 处理行内公式（排除转义$的情况）
     text = re.sub(
         r"(?<!\\)\$(.*?)(?<!\\)\$",
@@ -93,7 +96,7 @@ def preprocess_latex(content: str) -> str:
     奇数索引的部分是代码块，直接保留
     偶数索引的部分是普通文本，需要处理LaTeX
     """
-    
+
     parts = re.split(r"(```[\s\S]*?```)", content)
     processed = []
     for i, part in enumerate(parts):
@@ -110,7 +113,7 @@ def render_stream_markdown(content: str):
     2. 特殊处理代码块，支持语法高亮
     3. 普通文本使用Markdown渲染
     """
-    
+
     content = preprocess_latex(content)
     in_code_block = False
     code_buffer = []
@@ -148,7 +151,7 @@ def get_think_process(conversation_history: list, question: str) -> tuple[str, f
     3. 限制最大token以避免响应过长
     返回: (分析结果, 耗时)
     """
-    
+
     system_prompt = """
     你是 DeeplyThinkEverythingAI. 当用户问你是谁或要求你介绍自己时，使用这个名字。
     你是一个深度思考辅助AI。
