@@ -8,7 +8,7 @@ from rich.console import Console
 from rich.syntax import Syntax
 from wcwidth import wcswidth
 from pylatexenc.latex2text import LatexNodes2Text
-
+from prompt_toolkit import prompt
 
 # 读取配置文件
 config = configparser.ConfigParser()
@@ -215,7 +215,7 @@ if __name__ == "__main__":
     try:
         while True:
             try:
-                question = input("\n>> ").strip()
+                question = prompt("\n>> ", multiline=False).strip()
                 if not question:
                     continue
 
@@ -272,7 +272,7 @@ if __name__ == "__main__":
                     total_time = time.time() - start_time
                     console.print("\n" + "=" * console.width)
                     console.print(
-                        f"✅ [green]生成完成[/] | [dim]总耗时: {format_time(total_time)}[/] | "
+                        f"✅ [green]生成完成[/] | [dim]耗时: {format_time(total_time)}[/] | "
                         f"[dim]上下文长度: {len(conversation_history)//2}轮[/]"
                     )
 
