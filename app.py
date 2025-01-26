@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import os
 import time
 import openai
 import configparser
@@ -13,9 +14,10 @@ from pylatexenc.latex2text import LatexNodes2Text
 from prompt_toolkit import prompt
 
 # 读取配置文件
+script_dir = os.path.dirname(os.path.realpath(__file__))
 config = configparser.ConfigParser()
 try:
-    config.read("config.ini")
+    config.read(f"{script_dir}/config.ini")
 except Exception as e:
     print("读取配置文件失败:", e)
 
