@@ -1,4 +1,4 @@
-# DeeplySeekEverything
+# DeeplyThinkEverything
 
 赋予任何大模型深度思考的能力 | Empower any LLM with the ability to "DeepSeek". 
 
