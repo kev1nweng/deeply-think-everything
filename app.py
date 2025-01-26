@@ -218,11 +218,13 @@ def stream_final_answer(
     - 上下文矛盾时的澄清处理
     
     对用户要友善，语气可以轻松活泼一些，适当使用emoji.
+    尽量给出结构化的回答，可以使用分点等手段。
+    
+    接下来给出分析结果，请根据分析内容回答用户问题：
     """
 
-    messages = [{"role": "system", "content": system_prompt}]
+    messages = [{"role": "system", "content": system_prompt + "\n" + analysis}]
     messages.extend(conversation_history)
-    messages.append({"role": "assistant", "content": analysis})
     messages.append({"role": "user", "content": f"基于分析内容，请回答：{question}"})
 
     response = client.chat.completions.create(
