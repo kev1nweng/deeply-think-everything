@@ -21,7 +21,6 @@ try:
 except Exception as e:
     print("读取配置文件失败:", e)
 
-
 # 配置参数
 try:
 
@@ -40,60 +39,87 @@ console = Console(record=True)
 
 
 def dynamic_separator(title: str) -> str:
-    """生成动态居中分隔线"""
-
+    """生成动态居中分隔线
+    根据终端宽度自动调整分隔线长度，确保标题居中显示
+    wcswidth用于准确计算包含中文等宽字符的显示宽度
+    """
+    
     term_width = console.width
-    title = f" {title} "  # 为标题添加两侧空格
+    title = f" {title} "
     title_width = wcswidth(title)
-
-    # 计算可用空间
     available_width = term_width - title_width
     if available_width < 2:
         return "=" * term_width
-
-    # 计算两侧等号数量
     sep_len = available_width // 2
     return f"[dim]{'='*sep_len}[/][bold]{title}[/][dim]{'='*(available_width - sep_len)}[/]"
 
 
-def preprocess_latex(content: str) -> str:
-    """将 LaTeX 公式转换为终端友好格式"""
+def _handle_block_latex(match: re.Match) -> str:
+    """处理块级LaTeX公式
+    将LaTeX数学公式转换为纯文本格式，并添加美观的边框
+    """
+    
+    formula = match.group(1) or match.group(2)
+    converted = LatexNodes2Text().latex_to_text(formula).strip()
+    return f"\n┌ {' LaTeX ':-^8} ┐\n{converted}\n└ {'-'*8} ┘\n"
 
-    # 处理行内公式 $...$
-    inline_pattern = r"\$(.*?)\$"
-    content = re.sub(
-        inline_pattern,
+
+def _process_latex_in_text(text: str) -> str:
+    """处理非代码块中的LaTeX公式
+    1. 处理行内公式: $formula$ -> ┆formula┆
+    2. 处理块级公式: $$formula$$ 或 \[formula\] -> 带框显示
+    3. 避免处理已转义的LaTeX标记
+    """
+    
+    # 处理行内公式（排除转义$的情况）
+    text = re.sub(
+        r"(?<!\\)\$(.*?)(?<!\\)\$",
         lambda m: f"[dim]┆[/] {LatexNodes2Text().latex_to_text(m.group(1)).strip()} [dim]┆[/]",
-        content,
+        text,
+        flags=re.DOTALL,
+    )
+    # 处理块级公式（排除转义情况）
+    return re.sub(
+        r"(?<!\\)\$\$([\s\S]*?)(?<!\\)\$\$|(?<!\\)\\\[([\s\S]*?)(?<!\\)\\\]",
+        _handle_block_latex,
+        text,
         flags=re.DOTALL,
     )
 
-    # 处理块级公式 $$...$$ 和 \[...\]
-    block_pattern = r"\$\$(.*?)\$\$|\\\[(.*?)\\\]"
 
-    def block_replace(match):
-        formula = match.group(1) or match.group(2)
-        converted = LatexNodes2Text().latex_to_text(formula).strip()
-        return f"\n┌─ LaTeX ─┐\n{converted}\n└─────────┘\n"
-
-    return re.sub(block_pattern, block_replace, content, flags=re.DOTALL)
+def preprocess_latex(content: str) -> str:
+    """改进后的LaTeX预处理
+    使用正则表达式分割内容，确保代码块中的LaTeX符号不被处理
+    奇数索引的部分是代码块，直接保留
+    偶数索引的部分是普通文本，需要处理LaTeX
+    """
+    
+    parts = re.split(r"(```[\s\S]*?```)", content)
+    processed = []
+    for i, part in enumerate(parts):
+        if i % 2 == 1:
+            processed.append(part)
+            continue
+        processed.append(_process_latex_in_text(part))
+    return "".join(processed)
 
 
 def render_stream_markdown(content: str):
-    """改进后的流式Markdown渲染处理器"""
-
-    content = preprocess_latex(content)  # 新增预处理步骤
-
+    """改进后的流式Markdown渲染处理器
+    1. 预处理所有LaTeX公式
+    2. 特殊处理代码块，支持语法高亮
+    3. 普通文本使用Markdown渲染
+    """
+    
+    content = preprocess_latex(content)
     in_code_block = False
     code_buffer = []
     current_lang = "text"
 
     lines = content.split("\n")
     for line in lines:
-        # 处理代码块标记
         if line.strip().startswith("```"):
             if in_code_block:
-                # 渲染代码块
                 console.print(
                     Syntax(
                         "\n".join(code_buffer),
@@ -105,22 +131,24 @@ def render_stream_markdown(content: str):
                 code_buffer = []
                 in_code_block = False
             else:
-                # 解析代码语言
                 lang = line.strip()[3:].strip()
                 current_lang = lang if lang else "text"
                 in_code_block = True
             continue
-
         if in_code_block:
             code_buffer.append(line)
         else:
-            # 渲染预处理后的内容（保留其他Markdown格式）
-            console.print(Markdown(line))  # 保持原有Markdown渲染
+            console.print(Markdown(line))
 
 
 def get_think_process(conversation_history: list, question: str) -> tuple[str, float]:
-    """获取深度思考分析（带上下文）"""
-
+    """获取深度思考分析（带上下文）
+    1. 使用系统提示词引导AI进行深度分析
+    2. 保持较低temperature(0.3)以确保输出的连贯性和逻辑性
+    3. 限制最大token以避免响应过长
+    返回: (分析结果, 耗时)
+    """
+    
     system_prompt = """
     你是 DeeplyThinkEverythingAI. 当用户问你是谁或要求你介绍自己时，使用这个名字。
     你是一个深度思考辅助AI。
@@ -145,11 +173,10 @@ def get_think_process(conversation_history: list, question: str) -> tuple[str, f
     
     在分析的过程中对得出的内容进行自我反思，找出可能的逻辑漏洞并进行弥补和解释；
     并尽可能从多个方面进行考虑，提升对话的深度和广度。
-    请直接输出分析的内容，不要额外添加任何东西。
+    请直接输出分析的内容，不要额外添加任何东西。不要使用代码块，直接给出分析。
     """
 
     start_time = time.time()
-
     messages = [{"role": "system", "content": system_prompt}]
     messages.extend(conversation_history)
     messages.append({"role": "user", "content": question})
@@ -160,14 +187,18 @@ def get_think_process(conversation_history: list, question: str) -> tuple[str, f
         temperature=0.3,
         max_tokens=1500,
     )
-
     return response.choices[0].message.content, time.time() - start_time
 
 
 def stream_final_answer(
     conversation_history: list, analysis: str, question: str
 ) -> Generator[str, None, None]:
-    """流式生成最终回答（带上下文）"""
+    """流式生成最终回答
+    1. 将历史对话、分析结果和当前问题整合
+    2. 使用较高temperature(0.7)允许更有创造性的回答
+    3. 流式输出以提供更好的交互体验
+    yields: 回答内容的片段
+    """
 
     system_prompt = """
     你是 DeeplyThinkEverythingAI. 
@@ -206,7 +237,6 @@ def stream_final_answer(
 
 def format_time(seconds: float) -> str:
     """将秒数格式化为易读时间"""
-
     return f"{seconds:.2f}s" if seconds >= 1 else f"{seconds*1000:.0f}ms"
 
 
@@ -223,7 +253,6 @@ if __name__ == "__main__":
                 if not question:
                     continue
 
-                # 上下文重置指令
                 if question.lower() == "@new":
                     conversation_history.clear()
                     console.clear()
@@ -232,38 +261,31 @@ if __name__ == "__main__":
 
                 console.print("\n🤔 [yellow]正在深度思考...[/]")
 
-                # 阶段1：带上下文的思考分析
                 analysis, think_time = get_think_process(conversation_history, question)
 
-                # 显示思考过程
                 console.print(f"\n{dynamic_separator('思考过程分析')}\n")
-                render_stream_markdown(analysis)  # 使用改进后的渲染器
+                render_stream_markdown(analysis)
                 console.print(f"\n🔍 [dim]深度思考耗时: {format_time(think_time)}[/]")
 
-                # 阶段2：带上下文的流式回答
                 console.print(f"\n{dynamic_separator('最终答案生成')}\n")
                 answer_buffer = []
                 start_time = time.time()
                 full_content = ""
 
                 try:
-                    # 流式接收但统一渲染
                     for chunk in stream_final_answer(
                         conversation_history, analysis, question
                     ):
                         full_content += chunk
                         answer_buffer.append(chunk)
 
-                    # 统一渲染Markdown（带LaTeX处理）
                     render_stream_markdown(full_content)
 
                 except Exception as e:
-                    # 尝试渲染已接收内容
                     if full_content:
                         render_stream_markdown(full_content)
                     console.print(f"\n⚠️ [red]生成中断: {str(e)}[/]")
                 finally:
-                    # 更新对话上下文
                     if full_content:
                         conversation_history.extend(
                             [
@@ -272,7 +294,6 @@ if __name__ == "__main__":
                             ]
                         )
 
-                    # 性能统计
                     total_time = time.time() - start_time
                     console.print("\n" + "=" * console.width)
                     console.print(
@@ -284,7 +305,7 @@ if __name__ == "__main__":
                 console.print(
                     "\n🛑 [red]操作已取消，在 1s 内再次按下 Ctrl+C 退出程序[/]"
                 )
-                time.sleep(1)  # 等待第二次中断
+                time.sleep(1)
 
     except KeyboardInterrupt:
         console.print("\n👋 再见！")
