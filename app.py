@@ -1,11 +1,13 @@
 import time
 import openai
 import configparser
+import re
 from typing import Generator
 from rich.markdown import Markdown
 from rich.console import Console
 from rich.syntax import Syntax
-from wcwidth import wcswidth  # 用于准确计算字符显示宽度
+from wcwidth import wcswidth
+from pylatexenc.latex2text import LatexNodes2Text
 
 
 # 读取配置文件
@@ -18,10 +20,12 @@ except Exception as e:
 
 # 配置参数
 try:
+
     class Config:
         API_KEY = config.get("dte", "api_key")
         API_BASE = config.get("dte", "api_url")
         MODEL_NAME = config.get("dte", "model_name")
+
 except Exception as e:
     print("读取配置参数失败:", e)
     exit(1)
@@ -33,7 +37,7 @@ console = Console(record=True)
 
 def dynamic_separator(title: str) -> str:
     """生成动态居中分隔线"""
-    
+
     term_width = console.width
     title = f" {title} "  # 为标题添加两侧空格
     title_width = wcswidth(title)
@@ -48,9 +52,34 @@ def dynamic_separator(title: str) -> str:
     return f"[dim]{'='*sep_len}[/][bold]{title}[/][dim]{'='*(available_width - sep_len)}[/]"
 
 
+def preprocess_latex(content: str) -> str:
+    """将 LaTeX 公式转换为终端友好格式"""
+
+    # 处理行内公式 $...$
+    inline_pattern = r"\$(.*?)\$"
+    content = re.sub(
+        inline_pattern,
+        lambda m: f"[dim]┆[/] {LatexNodes2Text().latex_to_text(m.group(1)).strip()} [dim]┆[/]",
+        content,
+        flags=re.DOTALL,
+    )
+
+    # 处理块级公式 $$...$$ 和 \[...\]
+    block_pattern = r"\$\$(.*?)\$\$|\\\[(.*?)\\\]"
+
+    def block_replace(match):
+        formula = match.group(1) or match.group(2)
+        converted = LatexNodes2Text().latex_to_text(formula).strip()
+        return f"\n┌─ LaTeX ─┐\n{converted}\n└─────────┘\n"
+
+    return re.sub(block_pattern, block_replace, content, flags=re.DOTALL)
+
+
 def render_stream_markdown(content: str):
-    """流式Markdown渲染处理器"""
-    
+    """改进后的流式Markdown渲染处理器"""
+
+    content = preprocess_latex(content)  # 新增预处理步骤
+
     in_code_block = False
     code_buffer = []
     current_lang = "text"
@@ -81,24 +110,13 @@ def render_stream_markdown(content: str):
         if in_code_block:
             code_buffer.append(line)
         else:
-            # 渲染普通Markdown内容
-            console.print(Markdown(line))
-
-    # 处理未闭合的代码块
-    if in_code_block and code_buffer:
-        console.print(
-            Syntax(
-                "\n".join(code_buffer),
-                current_lang,
-                theme="monokai",
-                line_numbers=False,
-            )
-        )
+            # 渲染预处理后的内容（保留其他Markdown格式）
+            console.print(Markdown(line))  # 保持原有Markdown渲染
 
 
 def get_think_process(conversation_history: list, question: str) -> tuple[str, float]:
     """获取深度思考分析（带上下文）"""
-    
+
     system_prompt = """
     你是 DeeplyThinkEverythingAI. 当用户问你是谁或要求你介绍自己时，使用这个名字。
     你是一个深度思考辅助AI。
@@ -115,6 +133,15 @@ def get_think_process(conversation_history: list, question: str) -> tuple[str, f
     另外，有没有常见的误区需要避免？比如，傅里叶变换处理的是连续信号，而离散傅里叶变换（DFT）用于数字信号，这里可能需要简单带过，但用户只要简要介绍的话，可能不需要深入。
     最后，总结傅里叶变换的重要性，强调其跨学科的影响，让用户明白它的广泛应用。检查一下有没有遗漏的关键点，比如逆变换的存在，以及线性和相位信息这些特点。确保在简短的介绍里覆盖主要方面，同时保持易懂。
     ```
+    尽全力执行：
+    1. 模拟专家级思维链（CoT）
+    2. 预测知识盲区
+    3. 建立跨领域关联
+    4. 实施反事实推理
+    
+    在分析的过程中对得出的内容进行自我反思，找出可能的逻辑漏洞并进行弥补和解释；
+    并尽可能从多个方面进行考虑，提升对话的深度和广度。
+    请直接输出分析的内容，不要额外添加任何东西。
     """
 
     start_time = time.time()
@@ -137,25 +164,28 @@ def stream_final_answer(
     conversation_history: list, analysis: str, question: str
 ) -> Generator[str, None, None]:
     """流式生成最终回答（带上下文）"""
-    
+
     system_prompt = """
     你是 DeeplyThinkEverythingAI. 
+    当用户问你是谁或要求你介绍自己时，使用这个名字。
+    
     你需综合以下要素：
-    1. 当前深度思考分析
+    1. 在当前深度进行思考分析
     2. 完整对话历史上下文
     3. 保持回答连贯性和知识递进性
+    
     特别注意处理以下情况：
     - 当问题涉及先前概念时自动关联解释
     - 对重复提问智能识别并差异化响应
     - 上下文矛盾时的澄清处理
+    
+    对用户要友善，语气可以轻松活泼一些，适当使用emoji.
     """
 
     messages = [{"role": "system", "content": system_prompt}]
     messages.extend(conversation_history)
     messages.append({"role": "assistant", "content": analysis})
-    messages.append(
-        {"role": "user", "content": f"基于分析内容，请回答：{question}"}
-    )
+    messages.append({"role": "user", "content": f"基于分析内容，请回答：{question}"})
 
     response = client.chat.completions.create(
         model=Config.MODEL_NAME,
@@ -172,7 +202,7 @@ def stream_final_answer(
 
 def format_time(seconds: float) -> str:
     """将秒数格式化为易读时间"""
-    
+
     return f"{seconds:.2f}s" if seconds >= 1 else f"{seconds*1000:.0f}ms"
 
 
@@ -203,7 +233,7 @@ if __name__ == "__main__":
 
                 # 显示思考过程
                 console.print(f"\n{dynamic_separator('思考过程分析')}\n")
-                console.print(Markdown(analysis))
+                render_stream_markdown(analysis)  # 使用改进后的渲染器
                 console.print(f"\n🔍 [dim]深度思考耗时: {format_time(think_time)}[/]")
 
                 # 阶段2：带上下文的流式回答
@@ -220,7 +250,7 @@ if __name__ == "__main__":
                         full_content += chunk
                         answer_buffer.append(chunk)
 
-                    # 统一渲染Markdown
+                    # 统一渲染Markdown（带LaTeX处理）
                     render_stream_markdown(full_content)
 
                 except Exception as e:
@@ -247,7 +277,9 @@ if __name__ == "__main__":
                     )
 
             except KeyboardInterrupt:
-                console.print("\n🛑 [red]操作已取消，在 1s 内再次按下 Ctrl+C 退出程序[/]")
+                console.print(
+                    "\n🛑 [red]操作已取消，在 1s 内再次按下 Ctrl+C 退出程序[/]"
+                )
                 time.sleep(1)  # 等待第二次中断
 
     except KeyboardInterrupt:
