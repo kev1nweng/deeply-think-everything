@@ -31,7 +31,7 @@ python3 app.py
 ```
 ## 效果
 
-**示例问题：`how old is the earth`?** 
+### 示例问题1：`how old is the earth`?
 
 - DeepSeek V3（不启用深度思考）和 gpt-4o-mini 模型回答对比：
 
@@ -111,3 +111,244 @@ gpt-4o-mini + DeeplyThinkEverything
 最后，我需要确保信息的准确性和权威性，引用一些科学机构的研究结果，比如NASA或地质学会的相关数据。同时，考虑到用户可能对这个话题的进一步探索感兴趣，可以建议他们查阅一些关于地球科学或宇宙学的书籍或资料，以便深入了解。
 ```
 该 Demo 展示了在普通模型上实现的，与 DeepSeek 深度思考较为接近的结果。
+
+### 示例问题2：写一个网页贪吃蛇游戏
+
+- 纯 gpt-4o-mini：虽然可以运行，但是十分简陋，没有实时分数显示，而且没有考虑到键盘事件可能会用于页面滚动而影响游戏体验；此外，也没有在程序里写任何的注释。
+
+```html
+<!DOCTYPE html>
+<html lang="zh">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>贪吃蛇游戏</title>
+    <style>
+      body {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        background-color: #f0f0f0;
+      }
+      canvas {
+        background-color: #fff;
+        border: 1px solid #000;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="gameCanvas" width="400" height="400"></canvas>
+    <script>
+      const canvas = document.getElementById("gameCanvas");
+      const ctx = canvas.getContext("2d");
+
+      const box = 20;
+      let snake = [{ x: 9 * box, y: 9 * box }];
+      let direction = "RIGHT";
+      let food = {
+        x: Math.floor(Math.random() * 20) * box,
+        y: Math.floor(Math.random() * 20) * box,
+      };
+      let score = 0;
+
+      document.addEventListener("keydown", directionControl);
+
+      function directionControl(event) {
+        if (event.keyCode === 37 && direction !== "RIGHT") direction = "LEFT";
+        else if (event.keyCode === 38 && direction !== "DOWN") direction = "UP";
+        else if (event.keyCode === 39 && direction !== "LEFT")
+          direction = "RIGHT";
+        else if (event.keyCode === 40 && direction !== "UP") direction = "DOWN";
+      }
+
+      function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        for (let i = 0; i < snake.length; i++) {
+          ctx.fillStyle = i === 0 ? "green" : "lightgreen";
+          ctx.fillRect(snake[i].x, snake[i].y, box, box);
+          ctx.strokeStyle = "darkgreen";
+          ctx.strokeRect(snake[i].x, snake[i].y, box, box);
+        }
+
+        ctx.fillStyle = "red";
+        ctx.fillRect(food.x, food.y, box, box);
+
+        let snakeX = snake[0].x;
+        let snakeY = snake[0].y;
+
+        if (direction === "LEFT") snakeX -= box;
+        if (direction === "UP") snakeY -= box;
+        if (direction === "RIGHT") snakeX += box;
+        if (direction === "DOWN") snakeY += box;
+
+        if (snakeX === food.x && snakeY === food.y) {
+          score++;
+          food = {
+            x: Math.floor(Math.random() * 20) * box,
+            y: Math.floor(Math.random() * 20) * box,
+          };
+        } else {
+          snake.pop();
+        }
+
+        const newHead = { x: snakeX, y: snakeY };
+
+        if (
+          snakeX < 0 ||
+          snakeY < 0 ||
+          snakeX >= canvas.width ||
+          snakeY >= canvas.height ||
+          collision(newHead, snake)
+        ) {
+          clearInterval(game);
+          alert("游戏结束！得分: " + score);
+        }
+
+        snake.unshift(newHead);
+      }
+
+      function collision(head, array) {
+        for (let i = 0; i < array.length; i++) {
+          if (head.x === array[i].x && head.y === array[i].y) {
+            return true;
+          }
+        }
+        return false;
+      }
+
+      const game = setInterval(draw, 100);
+    </script>
+  </body>
+</html>
+```
+
+- gpt-4o-mini + DeeplyThinkEverything：添加了许多实用的游戏特性，并且写了样式使得页面溢出得到正确处理；将程序进行了更可维护的分文件处理；程序中也给出了必要的注释。
+
+```html
+<!DOCTYPE html>
+<html lang="zh">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>贪吃蛇游戏</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <h1>贪吃蛇游戏</h1>
+    <canvas id="gameCanvas" width="400" height="400"></canvas>
+    <div id="scoreBoard">得分: <span id="score">0</span></div>
+    <script src="script.js"></script>
+  </body>
+</html>
+```
+
+```css
+body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-family: Arial, sans-serif;
+}
+
+canvas {
+  border: 2px solid #000;
+  background-color: #f0f0f0;
+}
+
+#scoreBoard {
+  margin-top: 10px;
+  font-size: 20px;
+}
+```
+
+```javascript
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
+const box = 20; // 每个方块的大小
+let snake = [{ x: 9 * box, y: 9 * box }]; // 蛇的初始位置
+let direction = "RIGHT"; // 蛇的初始方向
+let food = {
+  x: Math.floor(Math.random() * 20) * box,
+  y: Math.floor(Math.random() * 20) * box,
+};
+let score = 0;
+
+// 控制蛇的移动
+document.addEventListener("keydown", directionControl);
+
+function directionControl(event) {
+  if (event.keyCode == 37 && direction != "RIGHT") direction = "LEFT";
+  else if (event.keyCode == 38 && direction != "DOWN") direction = "UP";
+  else if (event.keyCode == 39 && direction != "LEFT") direction = "RIGHT";
+  else if (event.keyCode == 40 && direction != "UP") direction = "DOWN";
+}
+
+// 绘制游戏界面
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // 绘制蛇
+  for (let i = 0; i < snake.length; i++) {
+    ctx.fillStyle = i === 0 ? "green" : "lightgreen";
+    ctx.fillRect(snake[i].x, snake[i].y, box, box);
+    ctx.strokeStyle = "darkgreen";
+    ctx.strokeRect(snake[i].x, snake[i].y, box, box);
+  }
+
+  // 绘制食物
+  ctx.fillStyle = "red";
+  ctx.fillRect(food.x, food.y, box, box);
+
+  // 蛇的移动逻辑
+  let snakeX = snake[0].x;
+  let snakeY = snake[0].y;
+
+  if (direction === "LEFT") snakeX -= box;
+  if (direction === "UP") snakeY -= box;
+  if (direction === "RIGHT") snakeX += box;
+  if (direction === "DOWN") snakeY += box;
+
+  // 蛇吃到食物
+  if (snakeX === food.x && snakeY === food.y) {
+    score++;
+    document.getElementById("score").innerText = score;
+    food = {
+      x: Math.floor(Math.random() * 20) * box,
+      y: Math.floor(Math.random() * 20) * box,
+    };
+  } else {
+    snake.pop(); // 移除最后一个部分
+  }
+
+  // 检测碰撞
+  const newHead = { x: snakeX, y: snakeY };
+
+  // 游戏结束条件
+  if (
+    snakeX < 0 ||
+    snakeY < 0 ||
+    snakeX >= canvas.width ||
+    snakeY >= canvas.height ||
+    collision(newHead, snake)
+  ) {
+    clearInterval(game);
+    alert("游戏结束！得分: " + score);
+  }
+
+  snake.unshift(newHead); // 新增蛇头
+}
+
+// 检测蛇与自身的碰撞
+function collision(head, array) {
+  for (let i = 0; i < array.length; i++) {
+    if (head.x === array[i].x && head.y === array[i].y) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// 启动游戏循环
+let game = setInterval(draw, 100);
+```
