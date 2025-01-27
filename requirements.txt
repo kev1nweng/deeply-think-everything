@@ -1,0 +1,5 @@
+openai==1.60.1
+prompt_toolkit==3.0.48
+pylatexenc==2.10
+rich==13.9.4
+wcwidth==0.2.13

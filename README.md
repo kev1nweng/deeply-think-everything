@@ -10,28 +10,57 @@
 
 ## 立即尝试
 
-1. 克隆该 git 仓库
+### Linux（以 Debian 系为例）
 
-```sh
+1. 克隆该 Git 仓库
+
+```bash
 git clone https://github.com/kev1nweng/deeply-think-everything.git
 ```
 
 2. 安装依赖
 
-```sh
-sudo apt install python3 python3-openai python3-rich python3-wcwidth
+```bash
+sudo apt install python3 python3-openai python3-rich python3-wcwidth python3-pylatexenc python3-prompt-toolkit
 ```
 
-3. 重命名配置文件 `config.example.ini` 并修改配置文件 `config.ini`
+> 除了 Debian 系之外的 Linux 发行版似乎可以直接用 pip 安装这些依赖
+
+3. 将 `config.example.ini` 重命名为 `config.ini` 并修改其中的 API 地址和密钥
 
 4. 运行
 
-```sh
+```bash
 python3 app.py
 ```
+
+### Windows
+
+0. 安装 Python 和 Git
+
+1. 克隆该 Git 仓库
+
+```bash
+git clone https://github.com/kev1nweng/deeply-think-everything.git
+```
+
+2. 安装依赖
+
+```bash
+pip install -r requirements.txt
+```
+
+3. 将 `config.example.ini` 重命名为 `config.ini` 并修改其中的 API 地址和密钥
+
+4. 运行
+
+```bash
+python app.py
+```
+
 ## 效果
 
-### 示例问题1：`how old is the earth`?
+### 示例问题1：`how old is the earth?`
 
 - DeepSeek V3（不启用深度思考）和 gpt-4o-mini 模型回答对比：
 
