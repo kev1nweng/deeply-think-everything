@@ -144,14 +144,15 @@ def render_stream_markdown(content: str):
             console.print(Markdown(line))
 
 
-def get_think_process(conversation_history: list, question: str) -> tuple[str, float]:
+def stream_think_process(
+    conversation_history: list, question: str
+) -> Generator[str, None, None]:
     """获取深度思考分析（带上下文）
     1. 使用系统提示词引导AI进行深度分析
     2. 保持较低temperature(0.3)以确保输出的连贯性和逻辑性
     3. 限制最大token以避免响应过长
     返回: (分析结果, 耗时)
     """
-
     system_prompt = """
     你是 DeeplyThinkEverythingAI. 当用户问你是谁或要求你介绍自己时，使用这个名字。
     你是一个深度思考辅助AI。
@@ -255,9 +256,9 @@ def get_think_process(conversation_history: list, question: str) -> tuple[str, f
     在分析的过程中对得出的内容进行自我反思，找出可能的逻辑漏洞并进行弥补和解释；
     并尽可能从多个方面进行考虑，提升对话的深度和广度。
     请直接输出分析的内容，不要额外添加任何东西。不要使用代码块，直接给出分析。
+    在分析的开头给出用户的语言信息。例如，如果用户的问题是英语的，就加上：“用户说英语。”
     """
 
-    start_time = time.time()
     messages = [{"role": "system", "content": system_prompt}]
     messages.extend(conversation_history)
     messages.append({"role": "user", "content": question})
@@ -267,8 +268,12 @@ def get_think_process(conversation_history: list, question: str) -> tuple[str, f
         messages=messages,
         temperature=0.3,
         max_tokens=1500,
+        stream=True,
     )
-    return response.choices[0].message.content, time.time() - start_time
+
+    for chunk in response:
+        if chunk.choices[0].delta.content:
+            yield chunk.choices[0].delta.content
 
 
 def stream_final_answer(
@@ -293,9 +298,9 @@ def stream_final_answer(
     - 上下文矛盾时的澄清处理
     
     对用户要友善，语气可以轻松活泼一些，适当使用emoji.
-    尽量给出结构化的回答，可以使用分点等手段。
+    尽量给出结构化、逻辑化的回答，可以使用分点等手段。
     
-    接下来给出分析结果，请根据分析内容回答用户问题：
+    接下来给出分析结果，请务必根据接下来内容给出的结构和条理回答问题：
     """
 
     messages = [{"role": "system", "content": system_prompt + "\n" + analysis}]
@@ -340,11 +345,28 @@ if __name__ == "__main__":
                     continue
 
                 console.print("\n🤔 [yellow]正在深度思考...[/]")
-
-                analysis, think_time = get_think_process(conversation_history, question)
-
                 console.print(f"\n{dynamic_separator('思考过程分析')}\n")
-                render_stream_markdown(analysis)
+
+                # 流式处理思考过程
+                start_time = time.time()
+                analysis_content = []
+                buffer = ""
+
+                for chunk in stream_think_process(conversation_history, question):
+                    buffer += chunk
+                    processed_part = _process_latex_in_text(buffer)
+                    console.print(processed_part, end="")
+                    analysis_content.append(processed_part)
+                    buffer = ""
+
+                # 处理剩余内容
+                if buffer:
+                    processed_part = _process_latex_in_text(buffer)
+                    console.print(processed_part, end="")
+                    analysis_content.append(processed_part)
+
+                think_time = time.time() - start_time
+                analysis = "".join(analysis_content)
                 console.print(f"\n🔍 [dim]深度思考耗时: {format_time(think_time)}[/]")
 
                 console.print(f"\n{dynamic_separator('最终答案生成')}\n")
