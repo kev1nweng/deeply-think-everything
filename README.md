@@ -1,5 +1,8 @@
 # DeeplyThinkEverything
 
+> [!WARNING]
+> **该项目的开发已经停止。** 目前已有更节省 token、不依赖于程序逻辑的提示词工程成果，可实现比该项目更好的效果。后续该项目的部分内容可能会分离出来，作为单独的 LLM CLI.
+
 > “探索未至之境”&nbsp;&nbsp;&nbsp;&nbsp;—— DeepSeek
 
 赋予任何大模型深度思考的能力 | Empower any LLM with the ability to "DeepSeek".
